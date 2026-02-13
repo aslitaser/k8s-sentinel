@@ -4,9 +4,16 @@ use std::time::Instant;
 use axum::extract::State;
 use axum::Json;
 use json_patch::Patch;
-use kube::core::admission::{AdmissionRequest, AdmissionResponse, AdmissionReview};
+use kube::core::admission::{AdmissionRequest, AdmissionResponse, AdmissionReview, Operation};
 use kube::core::DynamicObject;
 use tracing::{error, warn};
+
+fn fail_open_response(warning: String) -> AdmissionResponse {
+    let mut resp = AdmissionResponse::invalid("");
+    resp.allowed = true;
+    resp.warnings = Some(vec![warning]);
+    resp
+}
 
 use crate::config::PolicyMode;
 use crate::engine::{PolicyEngine, PolicyResult};
@@ -62,8 +69,7 @@ fn handle_webhook(
         Ok(r) => r,
         Err(e) => {
             warn!("failed to deserialize AdmissionReview: {e}");
-            let resp = AdmissionResponse::invalid(format!("failed to deserialize request: {e}"));
-            return review_to_json(resp.into_review());
+            return review_to_json(fail_open_response(format!("sentinel: {e}")).into_review());
         }
     };
 
@@ -71,8 +77,7 @@ fn handle_webhook(
         Ok(r) => r,
         Err(e) => {
             warn!("AdmissionReview missing request field: {e}");
-            let resp = AdmissionResponse::invalid("missing request field in AdmissionReview");
-            return review_to_json(resp.into_review());
+            return review_to_json(fail_open_response(format!("sentinel: {e}")).into_review());
         }
     };
 
@@ -167,15 +172,19 @@ fn record_request_metrics(
     req: &AdmissionRequest<DynamicObject>,
     webhook: &'static str,
 ) {
-    let operation = format!("{:?}", req.operation).to_uppercase();
-    let resource = req.resource.resource.clone();
+    let operation = match req.operation {
+        Operation::Create => "CREATE",
+        Operation::Update => "UPDATE",
+        Operation::Delete => "DELETE",
+        Operation::Connect => "CONNECT",
+    };
 
     state
         .metrics
         .admission_requests_total
         .get_or_create(&RequestLabels {
             operation,
-            resource,
+            resource: req.resource.resource.clone(),
             webhook,
         })
         .inc();

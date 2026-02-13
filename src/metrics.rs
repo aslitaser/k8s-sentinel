@@ -9,7 +9,7 @@ use crate::config::{PoliciesConfig, PolicyName};
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
 pub struct RequestLabels {
-    pub operation: String,
+    pub operation: &'static str,
     pub resource: String,
     pub webhook: &'static str,
 }
