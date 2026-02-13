@@ -11,6 +11,7 @@ use tracing::{error, warn};
 fn fail_open_response(warning: String) -> AdmissionResponse {
     let mut resp = AdmissionResponse::invalid("");
     resp.allowed = true;
+    resp.result = Default::default();
     resp.warnings = Some(vec![warning]);
     resp
 }
