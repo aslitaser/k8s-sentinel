@@ -65,13 +65,19 @@ pub fn evaluate(
             }
 
             if config.inject_if_missing {
-                let label_selector = build_label_selector(object, kind);
+                let labels = get_pod_labels(object, kind);
+                if labels.as_object().is_none_or(|m| m.is_empty()) {
+                    violations.push(format!(
+                        "{kind} '{resource_name}' has no labels, cannot inject topologySpreadConstraints"
+                    ));
+                    return PolicyOutput { violations, patches };
+                }
 
                 let constraint = json!([{
                     "maxSkew": config.max_skew,
                     "topologyKey": config.topology_key,
                     "whenUnsatisfiable": config.when_unsatisfiable,
-                    "labelSelector": label_selector,
+                    "labelSelector": json!({ "matchLabels": labels }),
                 }]);
 
                 let mut path_parts: Vec<&str> = prefix.split('/').collect();
@@ -88,11 +94,6 @@ pub fn evaluate(
         violations,
         patches,
     }
-}
-
-fn build_label_selector(object: &DynamicObject, kind: &str) -> Value {
-    let labels = get_pod_labels(object, kind);
-    json!({ "matchLabels": labels })
 }
 
 fn get_pod_labels(object: &DynamicObject, kind: &str) -> Value {
