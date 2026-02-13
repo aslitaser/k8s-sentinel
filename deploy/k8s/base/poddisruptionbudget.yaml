@@ -1,0 +1,14 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: k8s-sentinel
+  namespace: sentinel
+  labels:
+    app.kubernetes.io/name: k8s-sentinel
+spec:
+  # With 3 replicas, allow at most 1 to be unavailable during disruptions
+  # (rolling updates, node drains, etc.)
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: k8s-sentinel

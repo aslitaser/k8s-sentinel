@@ -1,0 +1,64 @@
+# k8s-sentinel configuration
+# All fields with defaults can be omitted; shown here for reference.
+
+
+listen_addr: "0.0.0.0:8443"
+
+
+tls_cert_path: "/certs/tls.crt"
+tls_key_path: "/certs/tls.key"
+
+
+metrics_addr: "0.0.0.0:9090"
+
+
+log_level: "info"
+
+policies:
+
+  enforce_resource_limits:
+    enabled: true
+
+    mode: enforce
+
+    max_cpu_millicores: 4000   # 4 cores
+    max_memory_mb: 8192        # 8 GiB
+    # When true, containers without requests/limits get the defaults below
+    inject_defaults: true
+    default_cpu_request: "100m"
+    default_cpu_limit: "500m"
+    default_memory_request: "128Mi"
+    default_memory_limit: "512Mi"
+
+  allowed_registries:
+    enabled: true
+    mode: enforce
+    registries:
+      - "gcr.io/myproject"
+      - "docker.io/library"
+      - "us-docker.pkg.dev/myproject/images"
+
+    allow_latest_tag: false
+
+  
+  required_labels:
+    enabled: true
+    mode: enforce
+    labels:
+      # Must be present; any value accepted
+      - key: "app.kubernetes.io/name"
+      # Must be present and match a semver-like pattern
+      - key: "app.kubernetes.io/version"
+        pattern: "^v?\\d+\\.\\d+\\.\\d+.*$"
+      - key: "app.kubernetes.io/managed-by"
+
+
+  topology_spread:
+    enabled: true
+    mode: enforce
+    max_skew: 1
+    topology_key: "topology.kubernetes.io/zone"
+
+    when_unsatisfiable: "DoNotSchedule"
+    # When true, add a topology spread constraint if the pod has none
+    inject_if_missing: true

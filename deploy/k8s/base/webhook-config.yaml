@@ -1,0 +1,122 @@
+# =============================================================================
+# Webhook Configuration
+#
+# k8s-sentinel registers as BOTH a mutating and validating webhook:
+#   - MutatingWebhookConfiguration runs first (admission ordering).
+#     Used for injecting defaults (resource limits, topology constraints).
+#   - ValidatingWebhookConfiguration runs second.
+#     Used for rejecting policy violations (forbidden registries, missing labels).
+#
+# Key fields explained:
+#   failurePolicy: Ignore
+#     Fail-open. If the webhook is unreachable or times out, the API server
+#     allows the request through. This is critical — a fail-closed webhook
+#     can brick your entire cluster if the webhook pod crashes.
+#
+#   timeoutSeconds: 5
+#     How long the API server waits for a response. Keep this short;
+#     anything over 10s risks blocking kubectl and controllers.
+#
+#   sideEffects: None
+#     Tells the API server this webhook has no out-of-band side effects.
+#     Required for dry-run support. If your webhook wrote to a database
+#     or sent notifications, you'd use "NoneOnDryRun" instead.
+#
+#   reinvocationPolicy: IfNeeded (mutating only)
+#     If another mutating webhook modifies the object after ours, the API
+#     server will re-invoke ours to ensure our mutations still apply.
+#
+#   namespaceSelector: exclude kube-system and sentinel
+#     Never webhook kube-system (breaks the cluster) or our own namespace
+#     (infinite loop: webhook pod can't start because webhook rejects it).
+#
+#   caBundle: ""
+#     Placeholder — must be populated with the CA certificate that signed
+#     the webhook's TLS cert. cert-manager's CA injector does this
+#     automatically when the cert-manager.io/inject-ca-from annotation is set.
+# =============================================================================
+
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: k8s-sentinel-mutating
+  labels:
+    app.kubernetes.io/name: k8s-sentinel
+  annotations:
+    # cert-manager will auto-inject the CA bundle from this Certificate resource
+    cert-manager.io/inject-ca-from: sentinel/k8s-sentinel-tls
+webhooks:
+  - name: mutate.k8s-sentinel.io
+    clientConfig:
+      service:
+        name: k8s-sentinel
+        namespace: sentinel
+        path: /mutate
+        port: 443
+      # Populated by cert-manager CA injector or manually
+      caBundle: ""
+    rules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["pods"]
+        scope: Namespaced
+      - apiGroups: ["apps"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["deployments"]
+        scope: Namespaced
+    namespaceSelector:
+      matchExpressions:
+        # Never intercept kube-system or our own namespace
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values:
+            - kube-system
+            - sentinel
+    failurePolicy: Ignore
+    timeoutSeconds: 5
+    sideEffects: None
+    admissionReviewVersions: ["v1"]
+    reinvocationPolicy: IfNeeded
+
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: k8s-sentinel-validating
+  labels:
+    app.kubernetes.io/name: k8s-sentinel
+  annotations:
+    cert-manager.io/inject-ca-from: sentinel/k8s-sentinel-tls
+webhooks:
+  - name: validate.k8s-sentinel.io
+    clientConfig:
+      service:
+        name: k8s-sentinel
+        namespace: sentinel
+        path: /validate
+        port: 443
+      caBundle: ""
+    rules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["pods"]
+        scope: Namespaced
+      - apiGroups: ["apps"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["deployments"]
+        scope: Namespaced
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values:
+            - kube-system
+            - sentinel
+    failurePolicy: Ignore
+    timeoutSeconds: 5
+    sideEffects: None
+    admissionReviewVersions: ["v1"]

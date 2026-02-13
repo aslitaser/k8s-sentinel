@@ -1,0 +1,47 @@
+# =============================================================================
+# cert-manager resources (optional)
+#
+# If cert-manager is installed in the cluster, these resources automatically
+# provision and rotate the TLS certificate used by the webhook.
+#
+# The CA injector annotation on the webhook configs (see webhook-config.yaml)
+# ensures the caBundle field is kept in sync with this certificate's CA.
+#
+# If you're NOT using cert-manager, create the "k8s-sentinel-tls" Secret
+# manually with tls.crt and tls.key, and populate caBundle in the webhook
+# configs yourself.
+# =============================================================================
+
+# Self-signed issuer scoped to the sentinel namespace.
+# For production, replace with a ClusterIssuer backed by your internal CA.
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: k8s-sentinel-selfsigned
+  namespace: sentinel
+  labels:
+    app.kubernetes.io/name: k8s-sentinel
+spec:
+  selfSigned: {}
+
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: k8s-sentinel-tls
+  namespace: sentinel
+  labels:
+    app.kubernetes.io/name: k8s-sentinel
+spec:
+  # The Secret name must match what the Deployment volume references
+  secretName: k8s-sentinel-tls
+  issuerRef:
+    name: k8s-sentinel-selfsigned
+    kind: Issuer
+  # DNS names the webhook will be reached at. The API server connects via
+  # <service>.<namespace>.svc, so this must be in the SAN list.
+  dnsNames:
+    - k8s-sentinel.sentinel.svc
+    - k8s-sentinel.sentinel.svc.cluster.local
+  duration: 8760h    # 1 year
+  renewBefore: 720h  # Renew 30 days before expiry

@@ -1,0 +1,60 @@
+{
+  "apiVersion": "admission.k8s.io/v1",
+  "kind": "AdmissionReview",
+  "request": {
+    "uid": "a1b2c3d4-0000-0000-0000-000000000002",
+    "kind": {
+      "group": "",
+      "version": "v1",
+      "kind": "Pod"
+    },
+    "resource": {
+      "group": "",
+      "version": "v1",
+      "resource": "pods"
+    },
+    "requestKind": {
+      "group": "",
+      "version": "v1",
+      "kind": "Pod"
+    },
+    "requestResource": {
+      "group": "",
+      "version": "v1",
+      "resource": "pods"
+    },
+    "name": "loadtest-no-limits",
+    "namespace": "default",
+    "operation": "CREATE",
+    "userInfo": {
+      "username": "system:serviceaccount:default:deployer",
+      "groups": ["system:serviceaccounts", "system:authenticated"]
+    },
+    "object": {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "name": "loadtest-no-limits",
+        "namespace": "default",
+        "labels": {
+          "app.kubernetes.io/name": "loadtest-nolimits",
+          "app.kubernetes.io/version": "v0.1.0",
+          "app.kubernetes.io/managed-by": "k6"
+        }
+      },
+      "spec": {
+        "containers": [
+          {
+            "name": "worker",
+            "image": "gcr.io/myproject/worker:v0.1.0",
+            "ports": [
+              { "containerPort": 3000 }
+            ]
+          }
+        ]
+      }
+    },
+    "oldObject": null,
+    "dryRun": false
+  }
+}

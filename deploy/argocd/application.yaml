@@ -1,0 +1,43 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: k8s-sentinel
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: k8s-sentinel
+  # Prevent accidental deletion of the Application from cascading to
+  # the deployed resources. Remove this if you want cascade deletes.
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: k8s-sentinel
+
+  source:
+    # Update repoURL to your actual Git repository
+    repoURL: https://github.com/your-org/k8s-sentinel.git
+    targetRevision: main
+    path: deploy/k8s/overlays/prod
+    # For dev, change to: deploy/k8s/overlays/dev
+
+  destination:
+    # "in-cluster" is the default ArgoCD name for the cluster it's running in
+    server: https://kubernetes.default.svc
+    namespace: sentinel
+
+  syncPolicy:
+    automated:
+      # Self-heal: if someone manually edits a resource, ArgoCD reverts it
+      selfHeal: true
+      # Prune: delete resources removed from Git
+      prune: true
+    syncOptions:
+      # Create the namespace if it doesn't exist
+      - CreateNamespace=true
+      # Apply out-of-sync resources only (faster syncs)
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
