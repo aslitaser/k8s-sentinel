@@ -11,6 +11,8 @@ Kubernetes admission webhook that validates and mutates workloads against a conf
 
 Each policy can run in `enforce` (reject) or `warn` (allow + warning header) mode.
 
+Mutation policies (resource_limits `inject_defaults`, topology_spread `inject_if_missing`) suppress their corresponding validation violations in the mutate path since the patch will fix the issue. If you only register the `/validate` webhook without `/mutate`, those resources will be rejected with no auto-fix.
+
 ## Architecture
 
 Two servers:

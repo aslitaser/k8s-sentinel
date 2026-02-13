@@ -223,7 +223,7 @@ fn generate_resource_patches(
 
 fn parse_cpu_millicores(value: &str) -> Option<u64> {
     if let Some(millis) = value.strip_suffix('m') {
-        millis.parse().ok()
+        millis.parse::<f64>().ok().map(|v| v as u64)
     } else {
         value.parse::<f64>().ok().map(|v| (v * 1000.0) as u64)
     }
