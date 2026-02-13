@@ -20,6 +20,7 @@ use hyper_util::service::TowerToHyperService;
 use prometheus_client::registry::Registry;
 use tokio::net::TcpListener;
 use tokio::sync::watch;
+use tokio::task::JoinSet;
 use tokio_rustls::TlsAcceptor;
 use tracing::{error, info};
 
@@ -68,6 +69,8 @@ async fn run_https_server(
     info!(%addr, "HTTPS webhook server listening");
     ready.store(true, Ordering::Relaxed);
 
+    let mut connections = JoinSet::new();
+
     loop {
         let (tcp_stream, remote_addr) = tokio::select! {
             result = listener.accept() => {
@@ -80,7 +83,7 @@ async fn run_https_server(
                 }
             }
             _ = shutdown_rx.changed() => {
-                info!("HTTPS server shutting down");
+                info!("HTTPS server shutting down, draining {} connections", connections.len());
                 break;
             }
         };
@@ -88,7 +91,7 @@ async fn run_https_server(
         let tls_acceptor = tls_acceptor.clone();
         let router = router.clone();
 
-        tokio::spawn(async move {
+        connections.spawn(async move {
             let tls_stream = match tls_acceptor.accept(tcp_stream).await {
                 Ok(stream) => stream,
                 Err(e) => {
@@ -108,6 +111,8 @@ async fn run_https_server(
             }
         });
     }
+
+    while connections.join_next().await.is_some() {}
 }
 
 async fn run_http_server(
@@ -138,18 +143,18 @@ async fn main() {
 
     let cli = Cli::parse();
 
-    tracing_subscriber::fmt()
-        .json()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
-        )
-        .init();
-
     let config = config::SentinelConfig::load(&cli.config).unwrap_or_else(|e| {
         eprintln!("Failed to load config from {}: {e}", cli.config);
         std::process::exit(1);
     });
+
+    tracing_subscriber::fmt()
+        .json()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(&config.log_level)),
+        )
+        .init();
 
     info!(
         listen_addr = %config.listen_addr,
